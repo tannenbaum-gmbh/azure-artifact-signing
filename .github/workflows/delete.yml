@@ -1,0 +1,116 @@
+name: Delete – Azure Trusted Signing
+
+# Trigger: manual dispatch only.
+# This workflow deletes the Trusted Signing resource group and all its contents.
+# WARNING: This action is irreversible.
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'Name of the resource group to delete'
+        required: true
+        default: 'rg-trusted-signing-dev'
+        type: string
+      confirm_deletion:
+        description: 'Type the resource group name again to confirm deletion'
+        required: true
+        type: string
+
+permissions:
+  # Required for OIDC token exchange with Azure
+  id-token: write
+  contents: read
+
+jobs:
+  delete:
+    name: Delete Trusted Signing Infrastructure
+    runs-on: ubuntu-latest
+
+    environment: azure  # optional: create a GitHub environment named 'azure' for approvals
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Safety check – confirm the resource group name matches
+      # ------------------------------------------------------------------
+      - name: Verify deletion confirmation
+        run: |
+          if [[ "${{ inputs.resource_group_name }}" != "${{ inputs.confirm_deletion }}" ]]; then
+            echo "::error::Deletion confirmation does not match the resource group name."
+            echo "  Provided resource group : '${{ inputs.resource_group_name }}'"
+            echo "  Confirmation value      : '${{ inputs.confirm_deletion }}'"
+            exit 1
+          fi
+          echo "Confirmation verified. Proceeding with deletion."
+
+      # ------------------------------------------------------------------
+      # 2. Checkout repository
+      # ------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 3. Azure login via OIDC
+      #
+      # Required GitHub Actions variables (set in repo Settings → Variables):
+      #   AZURE_CLIENT_ID      – App Registration client ID
+      #   AZURE_TENANT_ID      – Azure AD tenant ID
+      #   AZURE_SUBSCRIPTION_ID – Target subscription ID
+      #
+      # See README.md § "OIDC Setup" for full instructions.
+      # ------------------------------------------------------------------
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ------------------------------------------------------------------
+      # 4. Check that the resource group exists
+      # ------------------------------------------------------------------
+      - name: Check resource group exists
+        id: rg_check
+        run: |
+          if az group show --name "${{ inputs.resource_group_name }}" &>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Resource group '${{ inputs.resource_group_name }}' was not found. Nothing to delete."
+          fi
+
+      # ------------------------------------------------------------------
+      # 5. Delete resource group
+      # ------------------------------------------------------------------
+      - name: Delete resource group
+        if: steps.rg_check.outputs.exists == 'true'
+        run: |
+          echo "Deleting resource group '${{ inputs.resource_group_name }}'..."
+          az group delete \
+            --name "${{ inputs.resource_group_name }}" \
+            --yes
+          echo "Resource group deleted."
+
+      # ------------------------------------------------------------------
+      # 6. Write job summary
+      # ------------------------------------------------------------------
+      - name: Write job summary
+        if: always()
+        run: |
+          if [[ "${{ steps.rg_check.outputs.exists }}" == "true" ]]; then
+            STATUS="✅ Deleted"
+          elif [[ "${{ steps.rg_check.outputs.exists }}" == "false" ]]; then
+            STATUS="⚠️ Not found (already deleted or never created)"
+          else
+            STATUS="❌ Failed (check logs)"
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## 🗑️ Azure Trusted Signing – Deletion Summary
+
+          | Property | Value |
+          |---|---|
+          | Resource group | \`${{ inputs.resource_group_name }}\` |
+          | Status | ${STATUS} |
+
+          If the resource group existed and deletion succeeded, all Trusted Signing accounts and certificate profiles within it have been removed.
+          EOF
