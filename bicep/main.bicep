@@ -69,6 +69,7 @@ param tags object = {
 // ---------------------------------------------------------------------------
 module resourceGroup 'br/public:avm/res/resources/resource-group:0.4.0' = {
   name: 'resourceGroupDeployment'
+  scope: subscription()
   params: {
     name: resourceGroupName
     location: location
