@@ -112,5 +112,5 @@ jobs:
           | Resource group | \`${{ inputs.resource_group_name }}\` |
           | Status | ${STATUS} |
 
-          All Trusted Signing accounts and certificate profiles within the resource group have been removed.
+          If the resource group existed and deletion succeeded, all Trusted Signing accounts and certificate profiles within it have been removed.
           EOF

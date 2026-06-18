@@ -84,7 +84,7 @@ Replace `<owner>` and `<repo>` with your GitHub organisation/user and repository
 GITHUB_OWNER="<owner>"   # e.g. myorg or myusername
 GITHUB_REPO="<repo>"     # e.g. azure-artifact-signing
 
-# Federated credential for the main branch (CI triggers on push/PR to main)
+# Federated credential for the main branch (optional; only needed if you later add push/pull_request triggers on main)
 az ad app federated-credential create \
   --id "${APP_ID}" \
   --parameters '{
