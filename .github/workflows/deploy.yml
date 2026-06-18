@@ -1,0 +1,164 @@
+name: Deploy – Azure Trusted Signing
+
+# Trigger: manual dispatch only.
+# Inputs allow overriding bicep parameters without editing files.
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: 'Azure region (e.g. eastus, westeurope)'
+        required: false
+        default: 'eastus'
+        type: string
+      resource_group_name:
+        description: 'Resource group name to create'
+        required: false
+        default: 'rg-trusted-signing-dev'
+        type: string
+      account_name:
+        description: 'Trusted Signing account name (3–24 chars, start with letter)'
+        required: false
+        default: 'tsign-myproject-dev'
+        type: string
+      account_sku:
+        description: 'Account SKU (Basic or Premium)'
+        required: false
+        default: 'Basic'
+        type: choice
+        options:
+          - Basic
+          - Premium
+      certificate_profile_name:
+        description: 'Certificate profile name'
+        required: false
+        default: 'default'
+        type: string
+      profile_type:
+        description: 'Certificate profile type'
+        required: false
+        default: 'PublicTrustTest'
+        type: choice
+        options:
+          - PublicTrustTest
+          - PublicTrust
+          - PrivateTrust
+          - PrivateTrustCIPolicy
+          - VBSEnclave
+      identity_validation_id:
+        description: 'Identity validation ID (required for PublicTrust/PrivateTrust; leave empty for PublicTrustTest)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  # Required for OIDC token exchange with Azure
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Trusted Signing Infrastructure
+    runs-on: ubuntu-latest
+
+    environment: azure  # optional: create a GitHub environment named 'azure' for approvals
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Checkout repository
+      # ------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 2. Azure login via OIDC (no long-lived secrets required)
+      #
+      # Required GitHub Actions variables (set in repo Settings → Variables):
+      #   AZURE_CLIENT_ID      – App Registration client ID
+      #   AZURE_TENANT_ID      – Azure AD tenant ID
+      #   AZURE_SUBSCRIPTION_ID – Target subscription ID
+      #
+      # See README.md § "OIDC Setup" for full instructions.
+      # ------------------------------------------------------------------
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ------------------------------------------------------------------
+      # 3. Register the Microsoft.CodeSigning resource provider
+      # ------------------------------------------------------------------
+      - name: Register Microsoft.CodeSigning provider
+        run: |
+          az provider register --namespace Microsoft.CodeSigning --wait
+          echo "Resource provider registered."
+
+      # ------------------------------------------------------------------
+      # 4. Install Bicep CLI
+      # ------------------------------------------------------------------
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      # ------------------------------------------------------------------
+      # 5. Deploy Bicep template at subscription scope
+      # ------------------------------------------------------------------
+      - name: Deploy Bicep template
+        id: deploy
+        run: |
+          DEPLOYMENT_NAME="trusted-signing-$(date +%Y%m%d%H%M%S)"
+
+          # Build parameter overrides from workflow inputs
+          EXTRA_PARAMS=""
+          if [[ -n "${{ inputs.identity_validation_id }}" ]]; then
+            EXTRA_PARAMS="identityValidationId='${{ inputs.identity_validation_id }}'"
+          fi
+
+          az deployment sub create \
+            --name "${DEPLOYMENT_NAME}" \
+            --location "${{ inputs.location }}" \
+            --template-file ./bicep/main.bicep \
+            --parameters ./bicep/main.bicepparam \
+            --parameters \
+              location="${{ inputs.location }}" \
+              resourceGroupName="${{ inputs.resource_group_name }}" \
+              accountName="${{ inputs.account_name }}" \
+              accountSku="${{ inputs.account_sku }}" \
+              certificateProfileName="${{ inputs.certificate_profile_name }}" \
+              profileType="${{ inputs.profile_type }}" \
+              ${EXTRA_PARAMS} \
+            --output json | tee /tmp/deployment_output.json
+
+          # Extract outputs for downstream steps / summary
+          SIGNING_ENDPOINT=$(jq -r '.properties.outputs.signingEndpoint.value // empty' /tmp/deployment_output.json)
+          ACCOUNT_NAME_OUT=$(jq -r '.properties.outputs.trustedSigningAccountName.value // empty' /tmp/deployment_output.json)
+          PROFILE_NAME_OUT=$(jq -r '.properties.outputs.certificateProfileName.value // empty' /tmp/deployment_output.json)
+
+          echo "signingEndpoint=${SIGNING_ENDPOINT}"         >> "$GITHUB_OUTPUT"
+          echo "accountName=${ACCOUNT_NAME_OUT}"             >> "$GITHUB_OUTPUT"
+          echo "certificateProfileName=${PROFILE_NAME_OUT}"  >> "$GITHUB_OUTPUT"
+          echo "deploymentName=${DEPLOYMENT_NAME}"           >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------
+      # 6. Write deployment summary
+      # ------------------------------------------------------------------
+      - name: Write job summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## 🔐 Azure Trusted Signing – Deployment Summary
+
+          | Property | Value |
+          |---|---|
+          | Deployment name | `${{ steps.deploy.outputs.deploymentName }}` |
+          | Resource group  | `${{ inputs.resource_group_name }}` |
+          | Account name    | `${{ steps.deploy.outputs.accountName }}` |
+          | Certificate profile | `${{ steps.deploy.outputs.certificateProfileName }}` |
+          | Signing endpoint | `${{ steps.deploy.outputs.signingEndpoint }}` |
+          | Profile type    | `${{ inputs.profile_type }}` |
+
+          ### Next steps
+          - If you chose **PublicTrust** or **PrivateTrust**, complete identity validation in the [Azure Portal](https://portal.azure.com/#browse/Microsoft.CodeSigning%2FcodeSigningAccounts).
+          - Assign the **Trusted Signing Certificate Profile Signer** role to any identity that needs to sign artifacts.
+          - See `scripts/setup-certs-individual.sh` for individual developer signing setup.
+          EOF
