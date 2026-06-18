@@ -106,6 +106,7 @@ jobs:
       - name: Deploy Bicep template
         id: deploy
         run: |
+          set -o pipefail
           DEPLOYMENT_NAME="trusted-signing-$(date +%Y%m%d%H%M%S)"
 
           # Base parameter list (always present)

@@ -67,7 +67,7 @@ param tags object = {
 // See: https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/resources/resource-group
 // Check https://aka.ms/AVM for the latest available version.
 // ---------------------------------------------------------------------------
-module resourceGroup 'br/public:avm/res/resources/resource-group:0.4.0' = {
+module resourceGroupModule 'br/public:avm/res/resources/resource-group:0.4.0' = {
   name: 'resourceGroupDeployment'
   scope: subscription()
   params: {
@@ -85,8 +85,8 @@ module resourceGroup 'br/public:avm/res/resources/resource-group:0.4.0' = {
 // ---------------------------------------------------------------------------
 module trustedSigning 'modules/trustedSigningAccount.bicep' = {
   name: 'trustedSigningDeployment'
-  scope: az.resourceGroup(resourceGroupName)
-  dependsOn: [resourceGroup]
+  scope: resourceGroup(resourceGroupName)
+  dependsOn: [resourceGroupModule]
   params: {
     location: location
     accountName: accountName
@@ -105,7 +105,7 @@ module trustedSigning 'modules/trustedSigningAccount.bicep' = {
 // ---------------------------------------------------------------------------
 
 @description('Resource ID of the created resource group.')
-output resourceGroupId string = resourceGroup.outputs.resourceId
+output resourceGroupId string = resourceGroupModule.outputs.resourceId
 
 @description('Resource ID of the Trusted Signing account.')
 output trustedSigningAccountId string = trustedSigning.outputs.accountId
