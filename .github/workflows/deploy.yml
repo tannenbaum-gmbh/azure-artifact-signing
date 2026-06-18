@@ -108,10 +108,19 @@ jobs:
         run: |
           DEPLOYMENT_NAME="trusted-signing-$(date +%Y%m%d%H%M%S)"
 
-          # Build parameter overrides from workflow inputs
-          EXTRA_PARAMS=""
+          # Base parameter list (always present)
+          PARAMS=(
+            "location=${{ inputs.location }}"
+            "resourceGroupName=${{ inputs.resource_group_name }}"
+            "accountName=${{ inputs.account_name }}"
+            "accountSku=${{ inputs.account_sku }}"
+            "certificateProfileName=${{ inputs.certificate_profile_name }}"
+            "profileType=${{ inputs.profile_type }}"
+          )
+
+          # Conditionally append identityValidationId only when provided
           if [[ -n "${{ inputs.identity_validation_id }}" ]]; then
-            EXTRA_PARAMS="identityValidationId='${{ inputs.identity_validation_id }}'"
+            PARAMS+=("identityValidationId=${{ inputs.identity_validation_id }}")
           fi
 
           az deployment sub create \
@@ -119,14 +128,7 @@ jobs:
             --location "${{ inputs.location }}" \
             --template-file ./bicep/main.bicep \
             --parameters ./bicep/main.bicepparam \
-            --parameters \
-              location="${{ inputs.location }}" \
-              resourceGroupName="${{ inputs.resource_group_name }}" \
-              accountName="${{ inputs.account_name }}" \
-              accountSku="${{ inputs.account_sku }}" \
-              certificateProfileName="${{ inputs.certificate_profile_name }}" \
-              profileType="${{ inputs.profile_type }}" \
-              ${EXTRA_PARAMS} \
+            --parameters "${PARAMS[@]}" \
             --output json | tee /tmp/deployment_output.json
 
           # Extract outputs for downstream steps / summary

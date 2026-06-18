@@ -84,7 +84,7 @@ Replace `<owner>` and `<repo>` with your GitHub organisation/user and repository
 GITHUB_OWNER="<owner>"   # e.g. myorg or myusername
 GITHUB_REPO="<repo>"     # e.g. azure-artifact-signing
 
-# Federated credential for the main branch
+# Federated credential for the main branch (CI triggers on push/PR to main)
 az ad app federated-credential create \
   --id "${APP_ID}" \
   --parameters '{
@@ -94,13 +94,14 @@ az ad app federated-credential create \
     "audiences": ["api://AzureADTokenExchange"]
   }'
 
-# Federated credential for workflow_dispatch (any branch)
+# Federated credential for the 'azure' GitHub environment
+# (used by workflow_dispatch jobs that set `environment: azure`)
 az ad app federated-credential create \
   --id "${APP_ID}" \
   --parameters '{
-    "name": "github-actions-dispatch",
+    "name": "github-actions-environment-azure",
     "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:'"${GITHUB_OWNER}/${GITHUB_REPO}"':ref:refs/heads/main",
+    "subject": "repo:'"${GITHUB_OWNER}/${GITHUB_REPO}"':environment:azure",
     "audiences": ["api://AzureADTokenExchange"]
   }'
 ```

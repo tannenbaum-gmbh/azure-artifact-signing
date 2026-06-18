@@ -44,7 +44,9 @@ param tags object = {}
 
 // ---------------------------------------------------------------------------
 // Trusted Signing Account
-// API version: 2024-02-05-preview (latest documented preview as of 2024)
+// API version: 2024-02-05-preview
+// Check https://learn.microsoft.com/en-us/azure/templates/microsoft.codesigning/codesigningaccounts
+// for the latest available API version before deploying.
 // ---------------------------------------------------------------------------
 resource trustedSigningAccount 'Microsoft.CodeSigning/codeSigningAccounts@2024-02-05-preview' = {
   name: accountName

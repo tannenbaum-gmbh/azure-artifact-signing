@@ -147,7 +147,7 @@ if [[ "${PROFILE_TYPE}" == "PublicTrust" ]]; then
     --country "${YOUR_COUNTRY}" \
     --output json)
 
-  IDENTITY_VALIDATION_ID=$(echo "${VALIDATION_RESPONSE}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+  IDENTITY_VALIDATION_ID=$(echo "${VALIDATION_RESPONSE}" | jq -r '.id // empty')
   success "Identity validation request submitted."
   warn "Wait for approval before creating a PublicTrust certificate profile."
   warn "Check status:"
