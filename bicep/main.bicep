@@ -84,7 +84,7 @@ module resourceGroup 'br/public:avm/res/resources/resource-group:0.4.0' = {
 // ---------------------------------------------------------------------------
 module trustedSigning 'modules/trustedSigningAccount.bicep' = {
   name: 'trustedSigningDeployment'
-  scope: resourceGroup(resourceGroupName)
+  scope: az.resourceGroup(resourceGroupName)
   dependsOn: [resourceGroup]
   params: {
     location: location
