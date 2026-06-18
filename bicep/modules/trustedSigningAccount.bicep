@@ -65,13 +65,13 @@ resource trustedSigningAccount 'Microsoft.CodeSigning/codeSigningAccounts@2024-0
 resource certificateProfile 'Microsoft.CodeSigning/codeSigningAccounts/certificateProfiles@2024-02-05-preview' = {
   name: certificateProfileName
   parent: trustedSigningAccount
-  properties: {
+  properties: union({
     profileType: profileType
     includeStreetAddress: includeStreetAddress
     includePostalCode: includePostalCode
-    // identityValidationId is only required for PublicTrust / PrivateTrust profiles.
-    identityValidationId: empty(identityValidationId) ? null : identityValidationId
-  }
+  }, empty(identityValidationId) ? {} : {
+    identityValidationId: identityValidationId
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -44,11 +44,6 @@ on:
           - PrivateTrust
           - PrivateTrustCIPolicy
           - VBSEnclave
-      identity_validation_id:
-        description: 'Identity validation ID (required for PublicTrust/PrivateTrust; leave empty for PublicTrustTest)'
-        required: false
-        default: ''
-        type: string
 
 permissions:
   # Required for OIDC token exchange with Azure
@@ -118,11 +113,6 @@ jobs:
             "certificateProfileName=${{ inputs.certificate_profile_name }}"
             "profileType=${{ inputs.profile_type }}"
           )
-
-          # Conditionally append identityValidationId only when provided
-          if [[ -n "${{ inputs.identity_validation_id }}" ]]; then
-            PARAMS+=("identityValidationId=${{ inputs.identity_validation_id }}")
-          fi
 
           az deployment sub create \
             --name "${DEPLOYMENT_NAME}" \
