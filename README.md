@@ -8,6 +8,9 @@ This repository provides:
 - **Convenience shell scripts** – deploy, delete, and individual-developer certificate setup
 - **GitHub Actions workflows** – deployment, deletion, and end-to-end signing demo workflows using `workflow_dispatch` and OIDC authentication
 - **Hello World .NET app** – minimal sample application used by the signing demo workflow
+- **Interactive docs site** – a single-page guide (`docs/`) covering use cases, integrations and limitations, deployed to GitHub Pages
+
+> 📖 **Interactive guide:** Once GitHub Pages is enabled for this repository (Settings → Pages → Source: *GitHub Actions*), the interactive guide is published from the [`docs/`](docs/) folder by the **Deploy Docs – GitHub Pages** workflow.
 
 ---
 
@@ -334,6 +337,11 @@ az group delete --name rg-trusted-signing-dev --yes
 │   ├── main.bicepparam          # Default parameter values
 │   └── modules/
 │       └── trustedSigningAccount.bicep  # Signing account + certificate profile
+├── docs/                        # Interactive SPA (published to GitHub Pages)
+│   ├── index.html
+│   ├── styles.css
+│   ├── app.js
+│   └── data.js
 ├── scripts/
 │   ├── deploy.sh                # Convenience deployment script
 │   ├── delete.sh                # Resource deletion script
@@ -346,6 +354,7 @@ az group delete --name rg-trusted-signing-dev --yes
 │   └── workflows/
 │       ├── deploy.yml           # Deploy workflow (workflow_dispatch + OIDC)
 │       ├── delete.yml           # Delete workflow (workflow_dispatch + OIDC)
+│       ├── deploy-docs.yml      # Deploy docs/ SPA to GitHub Pages
 │       └── sign-demo.yml        # Build + sign demo (workflow_dispatch + OIDC)
 └── README.md
 ```
