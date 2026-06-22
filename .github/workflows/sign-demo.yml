@@ -120,7 +120,32 @@ jobs:
           exclude-interactive-browser-credential: true
 
       # ------------------------------------------------------------------
-      # 7. Upload signed artifact
+      # 7. Verify signature with signtool
+      # https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool
+      # ------------------------------------------------------------------
+      - name: Verify signature
+        shell: pwsh
+        run: |
+          # Locate signtool.exe – prefer the Windows Kits x64 binary, fall back to PATH
+          $signTool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits" `
+            -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match 'x64' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $signTool) {
+            $signTool = "signtool.exe"
+          }
+
+          Write-Host "Using signtool: $signTool"
+          & $signTool verify /pa /v "${{ github.workspace }}\publish\HelloWorld.exe"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "signtool verify failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+      # ------------------------------------------------------------------
+      # 8. Upload signed artifact
       # ------------------------------------------------------------------
       - name: Upload signed artifact
         uses: actions/upload-artifact@v4
@@ -130,7 +155,7 @@ jobs:
           if-no-files-found: error
 
       # ------------------------------------------------------------------
-      # 8. Write job summary
+      # 9. Write job summary
       # ------------------------------------------------------------------
       - name: Write job summary
         if: always()
@@ -145,6 +170,7 @@ jobs:
           | Account name     | ``${{ inputs.signing_account_name || vars.AZURE_TRUSTED_SIGNING_ACCOUNT }}`` |
           | Certificate profile | ``${{ inputs.certificate_profile_name || vars.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}`` |
           | Signed file      | ``HelloWorld.exe`` |
+          | Signature check  | ``signtool verify /pa /v`` |
 
           ### Next steps
           - Download the **hello-world-signed** artifact from the run summary.
