@@ -1,0 +1,296 @@
+name: Verify – Signed Artifact
+
+# Triggered automatically when the "Sign – Hello World Demo" workflow completes
+# successfully.  The job intentionally runs two verification passes:
+#
+#   Pass 1 – signtool verify /pa  without any extra trust anchors.
+#             For Private Trust certificate profiles the private root CA is NOT
+#             in the Windows default trust store, so this pass is expected to
+#             fail with "A certificate chain could not be built to a trusted
+#             root authority."
+#
+#   Pass 2 – The private root CA is extracted from the PKCS#7 chain that is
+#             embedded inside the signed binary itself (PE Security Directory),
+#             installed into the Local Machine Trusted Root store, and then
+#             signtool verify /pa is re-run.  This pass is expected to succeed.
+#
+# Reference: https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool
+
+on:
+  workflow_run:
+    workflows:
+      - "Sign – Hello World Demo"
+    types:
+      - completed
+
+permissions:
+  actions: read   # required to download artifacts from the triggering workflow run
+  contents: read
+
+jobs:
+  verify:
+    name: Verify signature of Hello World
+    runs-on: windows-latest
+    # Only run when the signing workflow succeeded and produced an artifact
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Download signed artifact from the triggering workflow run
+      # ------------------------------------------------------------------
+      - name: Download signed artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hello-world-signed
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: artifact
+
+      # ------------------------------------------------------------------
+      # 2. Locate signtool.exe (reused across both verification passes)
+      # ------------------------------------------------------------------
+      - name: Locate signtool.exe
+        id: signtool
+        shell: pwsh
+        run: |
+          $tool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+            -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match 'x64' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $tool) { $tool = "signtool.exe" }
+
+          Write-Host "signtool path: $tool"
+          "path=$tool" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # ------------------------------------------------------------------
+      # 3. Pass 1 – verify without installing the private root CA
+      #    Expected result: FAIL (private trust chain not in system store)
+      # ------------------------------------------------------------------
+      - name: "Pass 1: verify without root CA (expected to fail)"
+        id: verify_pass1
+        continue-on-error: true
+        shell: pwsh
+        env:
+          SIGNTOOL: ${{ steps.signtool.outputs.path }}
+          SIGNED_FILE: artifact\HelloWorld.exe
+        run: |
+          Write-Host "::group::signtool verify /pa /v (without root CA)"
+          & $env:SIGNTOOL verify /pa /v $env:SIGNED_FILE
+          $exitCode = $LASTEXITCODE
+          Write-Host "::endgroup::"
+
+          if ($exitCode -eq 0) {
+            Write-Host "✅ Verification succeeded (root CA already trusted by the system store)"
+            "result=success" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Warning "⚠️  Verification failed (exit code $exitCode) – expected for Private Trust chains"
+            "result=failed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      # ------------------------------------------------------------------
+      # 4. Extract the private root CA from the Authenticode chain that is
+      #    embedded in the signed binary and install it to the Local Machine
+      #    Trusted Root certificate store.
+      #
+      #    How it works:
+      #    An Authenticode-signed PE file stores its signature as a
+      #    PKCS#7 / CMS SignedData blob in the PE Security Directory
+      #    (WIN_CERTIFICATE structure).  We parse the PE headers to locate
+      #    that blob, decode it with System.Security.Cryptography.Pkcs.
+      #    SignedCms, and iterate the embedded certificate collection.  The
+      #    self-signed certificate in the collection is the private root CA.
+      # ------------------------------------------------------------------
+      - name: Install private root CA from signed binary
+        id: install_root_ca
+        shell: pwsh
+        env:
+          SIGNED_FILE: artifact\HelloWorld.exe
+        run: |
+          # ---------------------------------------------------------------------------
+          # Helper: read the raw PKCS#7 bytes from the PE Security Directory.
+          # The Security Directory is described in the PE Optional Header data
+          # directories at index 4.  For the Security Directory the "RVA" field is
+          # actually a raw file offset (not a virtual address).
+          # ---------------------------------------------------------------------------
+          function Get-PeAuthenticodePkcs7 {
+            param([string]$Path)
+
+            $bytes  = [System.IO.File]::ReadAllBytes($Path)
+            $stream = [System.IO.MemoryStream]::new($bytes)
+            $reader = [System.IO.BinaryReader]::new($stream)
+
+            try {
+              # DOS header: e_lfanew (PE header offset) is at 0x3C
+              $stream.Position = 0x3C
+              $peOffset = $reader.ReadInt32()
+
+              # Optional header starts at peOffset + 4 (PE sig) + 20 (COFF header)
+              $optBase = $peOffset + 24
+              $stream.Position = $optBase
+
+              # Optional header magic: 0x010B = PE32, 0x020B = PE32+ (64-bit)
+              $optMagic = $reader.ReadUInt16()
+              $is64     = $optMagic -eq 0x020B
+
+              # Data directories begin at offset 96 (PE32) or 112 (PE32+) inside
+              # the optional header.  Each entry is 8 bytes.
+              # Security directory = index 4 → skip 4 × 8 = 32 bytes.
+              $ddStart = if ($is64) { 112 } else { 96 }
+              $stream.Position = $optBase + $ddStart + (4 * 8)
+
+              $secFileOffset = $reader.ReadUInt32()   # file offset (not RVA) for PE security dir
+              $secSize       = $reader.ReadUInt32()
+
+              if ($secFileOffset -eq 0) {
+                Write-Warning "No Security Directory found – file may not be signed."
+                return $null
+              }
+
+              # WIN_CERTIFICATE structure:
+              #   DWORD dwLength          – total size including this header
+              #   WORD  wRevision         – 0x0200
+              #   WORD  wCertificateType  – 0x0002 = WIN_CERT_TYPE_PKCS_SIGNED_DATA
+              #   BYTE  bCertificate[]    – PKCS#7 / CMS SignedData
+              $stream.Position = $secFileOffset
+              $winCertLen  = $reader.ReadUInt32()
+              $reader.ReadUInt16() | Out-Null   # wRevision
+              $winCertType = $reader.ReadUInt16()
+
+              if ($winCertType -ne 0x0002) {
+                Write-Warning "Unexpected WIN_CERTIFICATE type 0x$('{0:X4}' -f $winCertType); expected 0x0002."
+                return $null
+              }
+
+              return $reader.ReadBytes([int]$winCertLen - 8)
+            }
+            finally {
+              $reader.Dispose()
+              $stream.Dispose()
+            }
+          }
+
+          # ---------------------------------------------------------------------------
+          # Extract PKCS#7 and decode with SignedCms
+          # ---------------------------------------------------------------------------
+          $pkcs7 = Get-PeAuthenticodePkcs7 -Path $env:SIGNED_FILE
+          if (-not $pkcs7) {
+            Write-Error "Could not extract Authenticode PKCS#7 from $env:SIGNED_FILE"
+            exit 1
+          }
+
+          $cms = [System.Security.Cryptography.Pkcs.SignedCms]::new()
+          $cms.Decode($pkcs7)
+
+          Write-Host "Certificates embedded in the Authenticode chain:"
+          foreach ($c in $cms.Certificates) {
+            $selfSigned = $c.Subject -eq $c.Issuer
+            Write-Host "  [$( if ($selfSigned) { 'ROOT' } else { 'CHAIN' } )]  $($c.Subject)"
+          }
+
+          # ---------------------------------------------------------------------------
+          # Find the root CA (self-signed certificate) and install it
+          # ---------------------------------------------------------------------------
+          $rootCert = $cms.Certificates |
+            Where-Object { $_.Subject -eq $_.Issuer } |
+            Select-Object -First 1
+
+          if (-not $rootCert) {
+            Write-Warning "No self-signed root CA found in the embedded chain."
+            Write-Warning "The signing service may not embed the root CA.  Skipping installation."
+            "installed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
+
+          Write-Host ""
+          Write-Host "Found private root CA:"
+          Write-Host "  Subject    : $($rootCert.Subject)"
+          Write-Host "  Thumbprint : $($rootCert.Thumbprint)"
+          Write-Host "  NotBefore  : $($rootCert.NotBefore)"
+          Write-Host "  NotAfter   : $($rootCert.NotAfter)"
+
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::LocalMachine
+          )
+          $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+          $store.Add($rootCert)
+          $store.Close()
+
+          Write-Host ""
+          Write-Host "✅ Root CA installed to LocalMachine\Root"
+          "installed=true"                       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "thumbprint=$($rootCert.Thumbprint)"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "subject=$($rootCert.Subject)"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # ------------------------------------------------------------------
+      # 5. Pass 2 – verify with the private root CA now in the trust store
+      #    Expected result: SUCCESS
+      # ------------------------------------------------------------------
+      - name: "Pass 2: verify with root CA installed"
+        id: verify_pass2
+        shell: pwsh
+        env:
+          SIGNTOOL: ${{ steps.signtool.outputs.path }}
+          SIGNED_FILE: artifact\HelloWorld.exe
+        run: |
+          Write-Host "::group::signtool verify /pa /v (with root CA installed)"
+          & $env:SIGNTOOL verify /pa /v $env:SIGNED_FILE
+          $exitCode = $LASTEXITCODE
+          Write-Host "::endgroup::"
+
+          if ($exitCode -ne 0) {
+            Write-Error "Verification still failed after installing the root CA (exit code $exitCode)"
+            exit $exitCode
+          }
+          Write-Host "✅ Signature verified successfully"
+
+      # ------------------------------------------------------------------
+      # 6. Write job summary
+      # ------------------------------------------------------------------
+      - name: Write job summary
+        if: always()
+        shell: pwsh
+        run: |
+          $pass1Result    = "${{ steps.verify_pass1.outputs.result }}"
+          $rootInstalled  = "${{ steps.install_root_ca.outputs.installed }}"
+          $pass2Outcome   = "${{ steps.verify_pass2.outcome }}"
+
+          $pass1Icon = if ($pass1Result -eq "success") { "✅ passed" } else { "❌ failed (expected for Private Trust)" }
+          $rootIcon  = if ($rootInstalled -eq "true")  { "✅ found and installed" } else { "⚠️ not found in embedded chain" }
+          $pass2Icon = switch ($pass2Outcome) {
+            "success" { "✅ passed" }
+            "skipped" { "⏭️ skipped" }
+            default   { "❌ failed" }
+          }
+
+          @"
+          ## 🔐 Verify – Signed Artifact
+
+          | Step | Result |
+          |---|---|
+          | Pass 1 – verify without root CA | $pass1Icon |
+          | Extract & install private root CA | $rootIcon |
+          | Pass 2 – verify with root CA installed | $pass2Icon |
+
+          ### Certificate details
+          | Field | Value |
+          |---|---|
+          | Root CA subject    | ``${{ steps.install_root_ca.outputs.subject }}`` |
+          | Root CA thumbprint | ``${{ steps.install_root_ca.outputs.thumbprint }}`` |
+
+          ### Triggering workflow
+          | Field | Value |
+          |---|---|
+          | Workflow | Sign – Hello World Demo |
+          | Run ID   | ``${{ github.event.workflow_run.id }}`` |
+          | Branch   | ``${{ github.event.workflow_run.head_branch }}`` |
+
+          ### Notes
+          - Private Trust certificate profiles use a root CA that is not part of the
+            Windows default trust store, so Pass 1 is expected to fail.
+          - The root CA certificate is embedded inside the Authenticode PKCS#7 chain
+            of the signed binary (PE Security Directory / WIN\_CERTIFICATE).
+          - Reference: [signtool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
