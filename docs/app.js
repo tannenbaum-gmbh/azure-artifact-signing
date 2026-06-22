@@ -29,6 +29,7 @@
         try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
         target.focus({ preventScroll: true });
+      });
     });
   }
 
@@ -166,6 +167,7 @@
       list.appendChild(li);
     });
     render(INTEGRATIONS[0]);
+  }
 
   /* ---------- Limitations lists ---------- */
   function initLimitations() {
