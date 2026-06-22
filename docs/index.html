@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="Interactive guide to Azure Trusted Signing (formerly Azure Artifact / Code Signing): use cases, capabilities, integrations and limitations." />
+  <title>Azure Trusted Signing — Interactive Guide</title>
+  <link rel="preconnect" href="https://learn.microsoft.com" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🔐</span>
+        <div>
+          <p class="brand-title">Azure Trusted Signing</p>
+          <p class="brand-sub">formerly Azure Artifact / Code Signing</p>
+        </div>
+      </div>
+      <nav class="top-nav" aria-label="Section navigation">
+        <button class="nav-btn" data-target="overview">Overview</button>
+        <button class="nav-btn" data-target="usecases">Use cases</button>
+        <button class="nav-btn" data-target="integrations">Integrations</button>
+        <button class="nav-btn" data-target="limitations">Limitations</button>
+        <button class="nav-btn" data-target="decide">Is it for me?</button>
+        <button class="nav-btn" data-target="resources">Resources</button>
+      </nav>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle colour theme" title="Toggle theme">🌓</button>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+
+    <!-- HERO / OVERVIEW -->
+    <section id="overview" class="panel hero" tabindex="-1">
+      <div class="hero-text">
+        <p class="eyebrow">Cloud-native code &amp; artifact signing</p>
+        <h1>Sign your software at scale — without managing certificates.</h1>
+        <p class="lead">
+          Azure Trusted Signing is a fully managed, Microsoft-operated signing service. You authenticate
+          with Microsoft Entra ID, and Microsoft handles certificate issuance, secure key storage in
+          FIPS&nbsp;140-2 Level&nbsp;3 HSMs, rotation, and revocation — so you never touch a private key.
+        </p>
+        <div class="hero-actions">
+          <button class="btn primary" data-target="decide">Should I use it? →</button>
+          <a class="btn ghost" href="https://learn.microsoft.com/en-us/azure/trusted-signing/" target="_blank" rel="noopener">Official docs ↗</a>
+        </div>
+      </div>
+      <ul class="stat-grid" aria-label="Key facts">
+        <li class="stat"><span class="stat-num" data-count="3">0</span><span class="stat-label">FIPS 140-2 Level 3 HSM keys</span></li>
+        <li class="stat"><span class="stat-num" data-count="0">0</span><span class="stat-label">Private keys you manage</span></li>
+        <li class="stat"><span class="stat-num" data-count="100">0</span><span class="stat-suffix">%</span><span class="stat-label">Entra ID RBAC controlled</span></li>
+      </ul>
+    </section>
+
+    <!-- WHAT IT IS -->
+    <section class="panel">
+      <h2>What it is &amp; how it works</h2>
+      <p class="section-intro">
+        Signatures are short-lived: a certificate is minted just for your signing request and is
+        timestamped, so the signature stays valid long after the certificate expires. Pick a stage to
+        explore the flow.
+      </p>
+      <ol class="flow" id="flow" aria-label="Signing flow">
+        <li class="flow-step is-active" data-step="0">
+          <span class="flow-dot">1</span><span class="flow-name">Authenticate</span>
+        </li>
+        <li class="flow-step" data-step="1">
+          <span class="flow-dot">2</span><span class="flow-name">Authorize</span>
+        </li>
+        <li class="flow-step" data-step="2">
+          <span class="flow-dot">3</span><span class="flow-name">Sign</span>
+        </li>
+        <li class="flow-step" data-step="3">
+          <span class="flow-dot">4</span><span class="flow-name">Timestamp</span>
+        </li>
+        <li class="flow-step" data-step="4">
+          <span class="flow-dot">5</span><span class="flow-name">Verify</span>
+        </li>
+      </ol>
+      <div class="flow-detail" id="flowDetail" aria-live="polite"></div>
+    </section>
+
+    <!-- USE CASES -->
+    <section id="usecases" class="panel" tabindex="-1">
+      <h2>Use cases</h2>
+      <p class="section-intro">Filter by category to see classic scenarios and emerging possibilities.</p>
+      <div class="chip-row" role="group" aria-label="Filter use cases">
+        <button class="chip is-on" data-filter="all">All</button>
+        <button class="chip" data-filter="classic">Classic</button>
+        <button class="chip" data-filter="emerging">Emerging</button>
+        <button class="chip" data-filter="supply-chain">Supply chain</button>
+      </div>
+      <div class="card-grid" id="useCaseGrid"></div>
+    </section>
+
+    <!-- INTEGRATIONS -->
+    <section id="integrations" class="panel" tabindex="-1">
+      <h2>Signing integrations</h2>
+      <p class="section-intro">
+        The same service powers many tools. Choose your artifact type to see the recommended tool and a
+        representative command.
+      </p>
+      <div class="integration-layout">
+        <ul class="integration-list" id="integrationList" role="tablist" aria-label="Integrations"></ul>
+        <div class="integration-detail" id="integrationDetail" role="tabpanel" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- LIMITATIONS -->
+    <section id="limitations" class="panel" tabindex="-1">
+      <h2>Limitations &amp; what it is <em>not</em> for</h2>
+      <p class="section-intro">
+        Signing proves <strong>integrity and provenance</strong> — it does not make software safe.
+        Keep these boundaries in mind.
+      </p>
+      <div class="two-col">
+        <div class="callout good">
+          <h3>✅ Great fit</h3>
+          <ul id="fitGood"></ul>
+        </div>
+        <div class="callout bad">
+          <h3>🚫 Not designed for</h3>
+          <ul id="fitBad"></ul>
+        </div>
+      </div>
+      <div class="note">
+        <strong>Note:</strong> Public Trust signing requires identity validation by Microsoft and an
+        organization with a verifiable legal business identity (3+ years of history is typically expected),
+        or an individual validation for solo developers. Use <code>PublicTrustTest</code> profiles for
+        experimentation — they are <em>not</em> trusted by Windows for production.
+      </div>
+    </section>
+
+    <!-- DECISION HELPER -->
+    <section id="decide" class="panel" tabindex="-1">
+      <h2>Is Trusted Signing for me?</h2>
+      <p class="section-intro">Answer a few questions for a tailored recommendation. Nothing is sent anywhere — it runs entirely in your browser.</p>
+      <div class="quiz" id="quiz">
+        <div class="quiz-question" id="quizQuestion" aria-live="polite"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div class="quiz-progress"><span id="quizBar" class="quiz-bar"></span></div>
+        <button class="btn ghost small" id="quizRestart" hidden>↺ Start over</button>
+      </div>
+    </section>
+
+    <!-- RESOURCES -->
+    <section id="resources" class="panel" tabindex="-1">
+      <h2>Resources</h2>
+      <ul class="link-list" id="resourceList"></ul>
+      <p class="repo-note">
+        This guide accompanies the
+        <a href="https://github.com/tannenbaum-gmbh/azure-artifact-signing" target="_blank" rel="noopener">tannenbaum-gmbh/azure-artifact-signing</a>
+        hands-on repository — Bicep infrastructure, deployment scripts and end-to-end GitHub Actions signing demos.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Built for the <a href="https://github.com/tannenbaum-gmbh/azure-artifact-signing" target="_blank" rel="noopener">azure-artifact-signing</a> playground. Content summarised from public Microsoft Learn documentation.</p>
+      <p class="muted">Not an official Microsoft product. Always verify details against the linked official docs.</p>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
