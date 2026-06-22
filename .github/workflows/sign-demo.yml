@@ -125,9 +125,11 @@ jobs:
       # ------------------------------------------------------------------
       - name: Verify signature
         shell: pwsh
+        env:
+          SIGNED_FILE: ${{ github.workspace }}\publish\HelloWorld.exe
         run: |
           # Locate signtool.exe – prefer the Windows Kits x64 binary, fall back to PATH
-          $signTool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits" `
+          $signTool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
             -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match 'x64' } |
             Sort-Object FullName -Descending |
@@ -138,7 +140,7 @@ jobs:
           }
 
           Write-Host "Using signtool: $signTool"
-          & $signTool verify /pa /v "${{ github.workspace }}\publish\HelloWorld.exe"
+          & $signTool verify /pa /v "$env:SIGNED_FILE"
           if ($LASTEXITCODE -ne 0) {
             Write-Error "signtool verify failed with exit code $LASTEXITCODE"
             exit $LASTEXITCODE
