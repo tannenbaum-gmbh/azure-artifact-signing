@@ -6,7 +6,8 @@ This repository provides:
 
 - **Bicep infrastructure templates** – resource group (via AVM), Trusted Signing account and certificate profile (native Bicep, no AVM module exists for `Microsoft.CodeSigning`)
 - **Convenience shell scripts** – deploy, delete, and individual-developer certificate setup
-- **GitHub Actions workflows** – deployment and deletion workflows using `workflow_dispatch` and OIDC authentication
+- **GitHub Actions workflows** – deployment, deletion, and end-to-end signing demo workflows using `workflow_dispatch` and OIDC authentication
+- **Hello World .NET app** – minimal sample application used by the signing demo workflow
 
 ---
 
@@ -18,9 +19,10 @@ This repository provides:
 4. [Deploying with GitHub Actions](#deploying-with-github-actions)
 5. [Deploying Manually (scripts)](#deploying-manually-scripts)
 6. [Individual Developer Certificate Setup](#individual-developer-certificate-setup)
-7. [Signing Artifacts](#signing-artifacts)
-8. [Deleting Resources](#deleting-resources)
-9. [Repository Structure](#repository-structure)
+7. [Signing Demo (GitHub Actions)](#signing-demo-github-actions)
+8. [Signing Artifacts](#signing-artifacts)
+9. [Deleting Resources](#deleting-resources)
+10. [Repository Structure](#repository-structure)
 
 ---
 
@@ -212,6 +214,53 @@ The script performs the following steps automatically:
 
 ---
 
+## Signing Demo (GitHub Actions)
+
+The **Sign – Hello World Demo** workflow (`sign-demo.yml`) provides an end-to-end example that:
+
+1. Builds the `src/HelloWorld` .NET 8 console application.
+2. Logs in to Azure with **OIDC** (no long-lived secrets).
+3. Signs the published `HelloWorld.exe` using [`azure/artifact-signing-action@v2`](https://github.com/Azure/artifact-signing-action).
+4. Uploads the signed binary as a GitHub Actions artifact.
+
+### Prerequisites
+
+- The Trusted Signing infrastructure must already be deployed (run the **Deploy – Azure Trusted Signing** workflow first).
+- The OIDC federated credential must cover the `azure` environment (see [OIDC Setup](#oidc-setup-github-actions)).
+- The following GitHub Actions **variables** must be set (Settings → Secrets and variables → Variables):
+
+| Variable name | Example value |
+|---|---|
+| `AZURE_CLIENT_ID` | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `AZURE_TENANT_ID` | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `AZURE_SUBSCRIPTION_ID` | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `AZURE_TRUSTED_SIGNING_ENDPOINT` | `https://eastus.codesigning.azure.net` |
+| `AZURE_TRUSTED_SIGNING_ACCOUNT` | `tsign-myproject-dev` |
+| `AZURE_TRUSTED_SIGNING_CERT_PROFILE` | `default` |
+
+### Running the workflow
+
+1. Go to **Actions** → **Sign – Hello World Demo** → **Run workflow**.
+2. Optionally override the endpoint, account name, or certificate profile via the workflow inputs (the repository variables are used when inputs are left blank).
+3. After the run succeeds, download the **hello-world-signed** artifact and verify the signature:
+   ```powershell
+   Get-AuthenticodeSignature .\HelloWorld.exe
+   ```
+
+### Assigning the signing role
+
+The identity used by the workflow must have the **Trusted Signing Certificate Profile Signer** role on the certificate profile:
+
+```bash
+az role assignment create \
+  --role "Trusted Signing Certificate Profile Signer" \
+  --assignee-object-id "${SP_OBJECT_ID}" \
+  --assignee-principal-type ServicePrincipal \
+  --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.CodeSigning/codeSigningAccounts/${ACCOUNT}/certificateProfiles/${PROFILE}"
+```
+
+---
+
 ## Signing Artifacts
 
 ### With AzureSignTool (cross-platform, recommended)
@@ -289,10 +338,15 @@ az group delete --name rg-trusted-signing-dev --yes
 │   ├── deploy.sh                # Convenience deployment script
 │   ├── delete.sh                # Resource deletion script
 │   └── setup-certs-individual.sh  # Individual developer cert setup (Azure CLI)
+├── src/
+│   └── HelloWorld/
+│       ├── HelloWorld.csproj    # .NET 8 console app (signing demo target)
+│       └── Program.cs           # Hello World entry point
 ├── .github/
 │   └── workflows/
 │       ├── deploy.yml           # Deploy workflow (workflow_dispatch + OIDC)
-│       └── delete.yml           # Delete workflow (workflow_dispatch + OIDC)
+│       ├── delete.yml           # Delete workflow (workflow_dispatch + OIDC)
+│       └── sign-demo.yml        # Build + sign demo (workflow_dispatch + OIDC)
 └── README.md
 ```
 
@@ -305,5 +359,6 @@ az group delete --name rg-trusted-signing-dev --yes
 - [Microsoft.CodeSigning Bicep reference](https://learn.microsoft.com/en-us/azure/templates/microsoft.codesigning/codesigningaccounts)
 - [Azure Verified Modules (AVM)](https://aka.ms/AVM)
 - [AVM resource-group module](https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/resources/resource-group)
+- [azure/artifact-signing-action](https://github.com/Azure/artifact-signing-action)
 - [AzureSignTool](https://github.com/vcsjones/AzureSignTool)
 - [Connect GitHub Actions to Azure with OIDC](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure)
