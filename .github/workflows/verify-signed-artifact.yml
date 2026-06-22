@@ -190,12 +190,22 @@ jobs:
           }
 
           # ---------------------------------------------------------------------------
-          # Find the root CA (self-signed certificate) and install it
+          # Find the root CA for the *signing* chain (not the timestamp chain) and install it
           # ---------------------------------------------------------------------------
-          $rootCert = $cms.Certificates |
-            Where-Object { $_.Subject -eq $_.Issuer } |
-            Select-Object -First 1
+          $signerCert = $cms.SignerInfos | Select-Object -First 1 -ExpandProperty Certificate
+          if (-not $signerCert) {
+            Write-Error "No signer certificate found in the Authenticode PKCS#7."
+            exit 1
+          }
 
+          $current = $signerCert
+          while ($current.Subject -ne $current.Issuer) {
+            $next = $cms.Certificates | Where-Object { $_.Subject -eq $current.Issuer } | Select-Object -First 1
+            if (-not $next) { break }
+            $current = $next
+          }
+
+          $rootCert = if ($current.Subject -eq $current.Issuer) { $current } else { $null }
           if (-not $rootCert) {
             Write-Warning "No self-signed root CA found in the embedded chain."
             Write-Warning "The signing service may not embed the root CA.  Skipping installation."
@@ -230,11 +240,11 @@ jobs:
       # ------------------------------------------------------------------
       - name: "Pass 2: verify with root CA installed"
         id: verify_pass2
+        if: ${{ steps.install_root_ca.outputs.installed == 'true' }}
         shell: pwsh
         env:
           SIGNTOOL: ${{ steps.signtool.outputs.path }}
           SIGNED_FILE: artifact\HelloWorld.exe
-        run: |
           Write-Host "::group::signtool verify /pa /v (with root CA installed)"
           & $env:SIGNTOOL verify /pa /v $env:SIGNED_FILE
           $exitCode = $LASTEXITCODE
@@ -252,10 +262,17 @@ jobs:
       - name: Write job summary
         if: always()
         shell: pwsh
+        env:
+          HEAD_BRANCH_RAW: ${{ github.event.workflow_run.head_branch }}
         run: |
           $pass1Result    = "${{ steps.verify_pass1.outputs.result }}"
           $rootInstalled  = "${{ steps.install_root_ca.outputs.installed }}"
           $pass2Outcome   = "${{ steps.verify_pass2.outcome }}"
+
+          $headBranch = $env:HEAD_BRANCH_RAW
+          if (-not $headBranch -or $headBranch -notmatch '^[A-Za-z0-9._/\-]{1,255}$') {
+            $headBranch = "[invalid-branch-name]"
+          }
 
           $pass1Icon = if ($pass1Result -eq "success") { "✅ passed" } else { "❌ failed (expected for Private Trust)" }
           $rootIcon  = if ($rootInstalled -eq "true")  { "✅ found and installed" } else { "⚠️ not found in embedded chain" }
@@ -288,7 +305,7 @@ jobs:
           |---|---|
           | Workflow | Sign – Hello World Demo |
           | Run ID   | ``${{ github.event.workflow_run.id }}`` |
-          | Branch   | ``${{ github.event.workflow_run.head_branch }}`` |
+          | Branch   | ``$headBranch`` |
 
           ### Notes
           - Private Trust certificate profiles use a root CA that is not part of the
