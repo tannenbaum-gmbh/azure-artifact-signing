@@ -25,9 +25,10 @@
       btn.addEventListener('click', function () {
         var target = document.getElementById(btn.getAttribute('data-target'));
         if (!target) return;
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var reduceMotion = false;
+        try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
         target.focus({ preventScroll: true });
-      });
     });
   }
 
@@ -47,7 +48,9 @@
   /* ---------- Animated stat counters ---------- */
   function initCounters() {
     var nums = $$('.stat-num');
-    if (!('IntersectionObserver' in window)) {
+    var reduceMotion = false;
+    try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
+    if (reduceMotion || !('IntersectionObserver' in window)) {
       nums.forEach(function (n) { n.textContent = n.getAttribute('data-count'); });
       return;
     }
@@ -131,25 +134,38 @@
       if (item.note) detail.appendChild(el('p', { class: 'integration-note', text: item.note }));
     }
     INTEGRATIONS.forEach(function (item, i) {
-      var li = el('li', { class: 'integration-item', role: 'tab', tabindex: '0' });
+      var tabId = 'integration-tab-' + item.id;
+      var li = el('li', {
+        class: 'integration-item',
+        role: 'tab',
+        id: tabId,
+        tabindex: i === 0 ? '0' : '-1',
+        'aria-controls': 'integrationDetail',
+        'aria-selected': i === 0 ? 'true' : 'false'
+      });
       li.appendChild(el('span', { class: 'ii-icon', 'aria-hidden': 'true', text: item.icon }));
       li.appendChild(el('span', { text: item.label }));
       function select() {
         $$('.integration-item', list).forEach(function (x) {
-          x.classList.remove('is-on'); x.setAttribute('aria-selected', 'false');
+          x.classList.remove('is-on');
+          x.setAttribute('aria-selected', 'false');
+          x.setAttribute('tabindex', '-1');
         });
-        li.classList.add('is-on'); li.setAttribute('aria-selected', 'true');
+        li.classList.add('is-on');
+        li.setAttribute('aria-selected', 'true');
+        li.setAttribute('tabindex', '0');
+        detail.setAttribute('aria-labelledby', tabId);
+        li.focus({ preventScroll: true });
         render(item);
       }
       li.addEventListener('click', select);
       li.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
       });
-      if (i === 0) { li.classList.add('is-on'); li.setAttribute('aria-selected', 'true'); }
+      if (i === 0) { li.classList.add('is-on'); detail.setAttribute('aria-labelledby', tabId); }
       list.appendChild(li);
     });
     render(INTEGRATIONS[0]);
-  }
 
   /* ---------- Limitations lists ---------- */
   function initLimitations() {

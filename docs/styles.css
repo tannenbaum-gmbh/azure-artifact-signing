@@ -88,7 +88,7 @@ body {
   box-shadow: var(--shadow);
   scroll-margin-top: 80px;
 }
-.panel:focus { outline: none; }
+.panel:focus { outline: 2px solid var(--accent); outline-offset: 3px; }
 .panel h2 { margin-top: 0; font-size: clamp(1.3rem, 3vw, 1.8rem); }
 .section-intro { color: var(--muted); max-width: 70ch; }
 
