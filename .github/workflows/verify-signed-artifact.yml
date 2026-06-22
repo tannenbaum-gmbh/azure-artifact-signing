@@ -265,6 +265,9 @@ jobs:
             default   { "❌ failed" }
           }
 
+          $rootSubject    = if ("${{ steps.install_root_ca.outputs.subject }}")     { "``${{ steps.install_root_ca.outputs.subject }}``" }     else { "N/A" }
+          $rootThumbprint = if ("${{ steps.install_root_ca.outputs.thumbprint }}") { "``${{ steps.install_root_ca.outputs.thumbprint }}``" } else { "N/A" }
+
           @"
           ## 🔐 Verify – Signed Artifact
 
@@ -277,8 +280,8 @@ jobs:
           ### Certificate details
           | Field | Value |
           |---|---|
-          | Root CA subject    | ``${{ steps.install_root_ca.outputs.subject }}`` |
-          | Root CA thumbprint | ``${{ steps.install_root_ca.outputs.thumbprint }}`` |
+          | Root CA subject    | $rootSubject |
+          | Root CA thumbprint | $rootThumbprint |
 
           ### Triggering workflow
           | Field | Value |
@@ -291,6 +294,6 @@ jobs:
           - Private Trust certificate profiles use a root CA that is not part of the
             Windows default trust store, so Pass 1 is expected to fail.
           - The root CA certificate is embedded inside the Authenticode PKCS#7 chain
-            of the signed binary (PE Security Directory / WIN\_CERTIFICATE).
+            of the signed binary (PE Security Directory / WIN_CERTIFICATE).
           - Reference: [signtool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
