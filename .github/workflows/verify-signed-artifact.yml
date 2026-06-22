@@ -245,6 +245,7 @@ jobs:
         env:
           SIGNTOOL: ${{ steps.signtool.outputs.path }}
           SIGNED_FILE: artifact\HelloWorld.exe
+        run: |
           Write-Host "::group::signtool verify /pa /v (with root CA installed)"
           & $env:SIGNTOOL verify /pa /v $env:SIGNED_FILE
           $exitCode = $LASTEXITCODE
