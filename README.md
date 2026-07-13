@@ -301,6 +301,22 @@ AzureSignTool sign \
      path\to\your\file.exe
    ```
 
+### With CoseSignTool (COSE / SBOM / generic payloads)
+
+`CoseSignTool` can use Azure Artifact Signing as its certificate provider to sign detached COSE payloads such as SBOMs, scripts, manifests or other files:
+
+```bash
+CoseSignTool sign \
+  --payload /path/to/sbom.spdx.json \
+  --signature-file /path/to/sbom.cose \
+  --cp azure-artifact-signing \
+  --aas-endpoint "https://eastus.codesigning.azure.net" \
+  --aas-account-name "tsign-myproject-dev" \
+  --aas-cert-profile-name "default"
+```
+
+The tool also supports `validate` and `get` commands, which makes it a good fit for supply-chain scenarios where you need to sign, verify and later recover payload content from COSE envelopes.
+
 ---
 
 ## Deleting Resources
@@ -369,5 +385,6 @@ az group delete --name rg-trusted-signing-dev --yes
 - [Azure Verified Modules (AVM)](https://aka.ms/AVM)
 - [AVM resource-group module](https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/resources/resource-group)
 - [azure/artifact-signing-action](https://github.com/Azure/artifact-signing-action)
+- [CoseSignTool](https://github.com/microsoft/CoseSignTool)
 - [AzureSignTool](https://github.com/vcsjones/AzureSignTool)
 - [Connect GitHub Actions to Azure with OIDC](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure)
