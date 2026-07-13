@@ -67,6 +67,12 @@ const USE_CASES = [
           'consumers can prove an artifact came from you and was not altered in transit.'
   },
   {
+    tag: 'supply-chain', icon: '🧾', title: 'SBOMs, scripts & COSE payloads',
+    body: 'Use CoseSignTool with Azure Artifact Signing to create COSE signatures for SBOMs, ' +
+          'scripts, manifests and other detached payloads, including validation and payload ' +
+          'retrieval flows for modern supply-chain scenarios.'
+  },
+  {
     tag: 'classic', icon: '🏢', title: 'CI/CD pipeline signing',
     body: 'Centralize signing in GitHub Actions or Azure DevOps using OIDC. Build agents sign on ' +
           'demand without any certificate ever being copied onto a runner.'
@@ -124,6 +130,20 @@ const INTEGRATIONS = [
       '  --plugin azure-codesigning \\\n' +
       '  --id "https://eastus.codesigning.azure.net/codesigningaccounts/acct/certificateprofiles/default"',
     note: 'Verify with: notation verify $REGISTRY/$REPO@$DIGEST. Always sign by digest, not tag.'
+  },
+  {
+    id: 'cosesigntool', label: 'COSE payloads (CoseSignTool)', icon: '🧾',
+    summary: 'Create, validate and inspect COSE signatures for SBOMs, scripts and other generic payloads.',
+    lang: 'bash',
+    code:
+      'CoseSignTool sign \\\n' +
+      '  --payload sbom.spdx.json \\\n' +
+      '  --signature-file sbom.cose \\\n' +
+      '  --cp azure-artifact-signing \\\n' +
+      '  --aas-endpoint https://eastus.codesigning.azure.net \\\n' +
+      '  --aas-account-name tsign-myproject-dev \\\n' +
+      '  --aas-cert-profile-name default',
+    note: 'Also supports validate/get commands plus optional SCITT-oriented CWT claims for supply-chain use cases.'
   },
   {
     id: 'github', label: 'CI/CD (GitHub Actions)', icon: '🚀',
@@ -223,6 +243,7 @@ const RESOURCES = [
   { t: 'Sign & verify a container image (Notation + ACR)', u: 'https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tutorial-sign-verify-notation-artifact-signing?tabs=linux' },
   { t: 'SignTool reference (Win32)', u: 'https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool' },
   { t: 'Hands-on repo: tannenbaum-gmbh/azure-artifact-signing', u: 'https://github.com/tannenbaum-gmbh/azure-artifact-signing' },
+  { t: 'CoseSignTool', u: 'https://github.com/microsoft/CoseSignTool' },
   { t: 'AzureSignTool', u: 'https://github.com/vcsjones/AzureSignTool' },
   { t: 'azure/trusted-signing-action', u: 'https://github.com/Azure/trusted-signing-action' }
 ];
