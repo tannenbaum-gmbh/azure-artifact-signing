@@ -1,0 +1,15 @@
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/bin/Debug/net8.0/HelloWorld
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/bin/Debug/net8.0/HelloWorld.deps.json
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/bin/Debug/net8.0/HelloWorld.runtimeconfig.json
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/bin/Debug/net8.0/HelloWorld.dll
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/bin/Debug/net8.0/HelloWorld.pdb
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.AssemblyInfoInputs.cache
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.AssemblyInfo.cs
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.csproj.CoreCompileInputs.cache
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.sourcelink.json
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.dll
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/refint/HelloWorld.dll
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.pdb
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/HelloWorld.genruntimeconfig.cache
+/home/runner/work/azure-artifact-signing/azure-artifact-signing/src/HelloWorld/obj/Debug/net8.0/ref/HelloWorld.dll
